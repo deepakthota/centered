@@ -1,0 +1,35 @@
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: centered
+      POSTGRES_USER: centered
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U centered"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  migrate:
+    build: ./apps/api
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://centered:${POSTGRES_PASSWORD}@db:5432/centered
+    depends_on:
+      db:
+        condition: service_healthy
+  api:
+    build: ./apps/api
+    environment:
+      CENTERED_ENV: development
+      CENTERED_DEV_TOKEN: ${CENTERED_DEV_TOKEN:?Set CENTERED_DEV_TOKEN in .env}
+      DATABASE_URL: postgresql+psycopg://centered:${POSTGRES_PASSWORD}@db:5432/centered
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+volumes:
+  postgres-data:
